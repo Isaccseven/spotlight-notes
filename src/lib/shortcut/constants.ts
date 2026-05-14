@@ -1,0 +1,4 @@
+const GLOBAL_SHORTCUTS_KEY = "Command+Shift+W";
+const DEBOUNCE_DELAY = 500;
+
+export { GLOBAL_SHORTCUTS_KEY, DEBOUNCE_DELAY };

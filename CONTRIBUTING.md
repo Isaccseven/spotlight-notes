@@ -47,13 +47,45 @@ src/lib/          # Store, shortcuts, logging, notifications
 
 ## Commit Messages
 
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
+This project enforces [Conventional Commits](https://www.conventionalcommits.org/) via commitlint. Every commit message must follow the format:
 
-- `feat:` new feature
-- `fix:` bug fix
-- `docs:` documentation changes
-- `refactor:` code restructuring
-- `chore:` maintenance tasks
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+The commit `type` determines the next version bump:
+
+| Type     | Release | Description |
+|----------|---------|-------------|
+| `fix`    | Patch   | Bug fix |
+| `feat`   | Minor   | New feature |
+| `feat!` or `fix!` or `refactor!` etc. (`!` suffix) | Major | Breaking change |
+| `docs`   | No release | Documentation only |
+| `style`  | No release | Code style (formatting, semicolons, etc.) |
+| `refactor` | No release | Code restructuring |
+| `perf`   | No release | Performance improvement |
+| `test`   | No release | Adding or fixing tests |
+| `chore`  | No release | Maintenance tasks |
+| `ci`     | No release | CI configuration changes |
+| `build`  | No release | Build system changes |
+| `revert` | No release | Revert a previous commit |
+
+The `scope` is optional but recommended (e.g. `feat(store):`, `fix(tray):`).
+
+Breaking changes use a `!` before the colon: `feat!(api): remove legacy endpoint`.
+
+Examples:
+
+```
+feat(notifications): add @2d delay support
+fix(store): handle empty notes gracefully
+feat!: redesign persistence layer
+docs: fix typo in README
+```
 
 ## Questions?
 

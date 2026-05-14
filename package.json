@@ -1,8 +1,20 @@
 {
-  "name": "mac-quick-note",
-  "private": true,
+  "name": "spotlight-notes",
   "version": "0.1.0",
+  "private": false,
   "type": "module",
+  "description": "A macOS menu-bar quick-note app with Spotlight-like overlay and scheduled reminders",
+  "author": "Isaccseven",
+  "license": "MIT",
+  "keywords": ["notes", "macos", "tauri", "quick-note", "spotlight", "menu-bar"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Isaccseven/spotlight-notes.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Isaccseven/spotlight-notes/issues"
+  },
+  "homepage": "https://github.com/Isaccseven/spotlight-notes#readme",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

@@ -1,8 +1,8 @@
 {
   "$schema": "./tauri-config-schema.json",
-  "productName": "mac-quick-note",
+  "productName": "Spotlight Notes",
   "version": "0.1.0",
-  "identifier": "com.lucahenn.mac-quick-note",
+  "identifier": "com.isaccseven.spotlight-notes",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",

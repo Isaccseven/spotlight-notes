@@ -273,11 +273,11 @@ export function useNotes() {
   };
 
   const deleteNote = async (id: string) => {
-    await persistNotes(notes.filter((n) => n.id !== id));
+    await persistNotes(notesRef.current.filter((n) => n.id !== id));
   };
 
   const togglePin = async (id: string) => {
-    const updated = notes.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n));
+    const updated = notesRef.current.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n));
     await persistNotes(updated);
   };
 
@@ -419,7 +419,7 @@ export function useNotes() {
     } else if (e.key === "Backspace") {
       e.preventDefault();
       const noteId = filteredNotes[i].id;
-      const updated = notes.filter((n) => n.id !== noteId);
+      const updated = notesRef.current.filter((n) => n.id !== noteId);
       const nextFiltered = updated.filter((n) =>
         text.trim()
           ? n.text.toLowerCase().includes(text.trim().toLowerCase())

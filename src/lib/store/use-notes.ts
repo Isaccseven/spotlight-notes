@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { store } from "@/lib/store/store";
 import { Note } from "@/types/note";
@@ -23,6 +23,12 @@ export function useNotes() {
   useEffect(() => {
     notesRef.current = notes;
   }, [notes]);
+
+  const filteredNotes = useMemo(() => {
+    const query = text.trim().toLowerCase();
+    if (!query) return notes;
+    return notes.filter((n) => n.text.toLowerCase().includes(query));
+  }, [text, notes]);
 
   useEffect(() => {
     store
@@ -86,14 +92,14 @@ export function useNotes() {
     setText("");
   };
 
-  const deleteNote = async (index: number) => {
-    await persistNotes(notes.filter((_, i) => i !== index));
+  const deleteNote = async (id: string) => {
+    await persistNotes(notes.filter((n) => n.id !== id));
   };
 
   const handleInputKeyDown = async (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       await saveNote();
-    } else if (e.key === "Tab" && !e.shiftKey && notes.length > 0) {
+    } else if (e.key === "Tab" && !e.shiftKey && filteredNotes.length > 0) {
       e.preventDefault();
       setFocusedIndex(0);
     }
@@ -102,19 +108,25 @@ export function useNotes() {
   const handleNoteKeyDown = async (e: React.KeyboardEvent, i: number) => {
     if (e.key === "Tab" && !e.shiftKey) {
       e.preventDefault();
-      i < notes.length - 1 ? setFocusedIndex(i + 1) : focusInput();
+      i < filteredNotes.length - 1 ? setFocusedIndex(i + 1) : focusInput();
     } else if (e.key === "Tab" && e.shiftKey) {
       e.preventDefault();
       i > 0 ? setFocusedIndex(i - 1) : focusInput();
     } else if (e.key === "Backspace") {
       e.preventDefault();
-      const updated = notes.filter((_, idx) => idx !== i);
+      const noteId = filteredNotes[i].id;
+      const updated = notes.filter((n) => n.id !== noteId);
+      const nextFiltered = updated.filter((n) =>
+        text.trim()
+          ? n.text.toLowerCase().includes(text.trim().toLowerCase())
+          : true,
+      );
       // Trim stale refs before updating focus (fix #1)
       noteRefs.current = noteRefs.current.slice(0, updated.length);
       await persistNotes(updated);
-      updated.length === 0
+      nextFiltered.length === 0
         ? focusInput()
-        : setFocusedIndex(Math.min(i, updated.length - 1));
+        : setFocusedIndex(Math.min(i, nextFiltered.length - 1));
     } else if (e.key === "Escape") {
       focusInput();
     }
@@ -124,6 +136,7 @@ export function useNotes() {
     text,
     setText,
     notes,
+    filteredNotes,
     focusedIndex,
     inputRef,
     noteRefs,

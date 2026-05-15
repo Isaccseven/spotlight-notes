@@ -10,8 +10,6 @@ import {
   INSERT_TAG_KEY,
   NEXT_TAG_GROUP_KEY,
   PREV_TAG_GROUP_KEY,
-  CYCLE_TAG_KEY,
-  REMOVE_TAG_KEY,
 } from "@/lib/shortcut/constants";
 
 const APP_WINDOW = getCurrentWindow();
@@ -59,11 +57,6 @@ export function useNotes() {
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [settings, setSettings] = useState<Settings>(getDefaultSettings);
-  const [groupByTags, setGroupByTags] = useState(true);
-  const [tagInputNoteId, setTagInputNoteId] = useState<string | null>(null);
-  const [tagInputValue, setTagInputValue] = useState("");
-  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
-  const [selectedTagIndex, setSelectedTagIndex] = useState(0);
   const textRef = useRef(text);
   const notesRef = useRef<Note[]>(notes);
   const settingsRef = useRef<Settings>(settings);

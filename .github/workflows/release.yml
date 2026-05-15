@@ -22,6 +22,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
       - run: bun install --frozen-lockfile
       - name: Semantic Release
         run: bunx semantic-release

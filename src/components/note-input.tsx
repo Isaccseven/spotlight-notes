@@ -1,6 +1,7 @@
 import SearchIcon from "@/components/icons/SearchIcon";
 import CloseIcon from "@/components/icons/CloseIcon";
 import NoteText from "@/components/note-text";
+import { useTheme } from "@/lib/theme/context";
 
 interface Props {
   text: string;
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export default function NoteInput({ text, inputRef, onChange, onKeyDown, onClear }: Props) {
+  const { isDark } = useTheme();
+
   return (
     <div className="px-5 py-4 flex items-center gap-3">
       <SearchIcon />
@@ -31,7 +34,11 @@ export default function NoteInput({ text, inputRef, onChange, onKeyDown, onClear
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="Type a quick note..."
-          className="relative w-full bg-transparent placeholder-white/40 text-[20px] outline-none caret-white"
+          className={`relative w-full bg-transparent text-[20px] outline-none ${
+            isDark
+              ? "placeholder-white/40 caret-white"
+              : "placeholder-black/40 caret-black"
+          }`}
           style={{ color: "transparent" }}
           autoFocus
         />
@@ -40,7 +47,11 @@ export default function NoteInput({ text, inputRef, onChange, onKeyDown, onClear
       {text && (
         <button
           onClick={onClear}
-          className="flex-shrink-0 w-7 h-7 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
+          className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
+            isDark
+              ? "bg-white/15 hover:bg-white/25"
+              : "bg-black/15 hover:bg-black/25"
+          }`}
         >
           <CloseIcon />
         </button>
@@ -48,4 +59,3 @@ export default function NoteInput({ text, inputRef, onChange, onKeyDown, onClear
     </div>
   );
 }
-

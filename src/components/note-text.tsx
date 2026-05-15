@@ -1,30 +1,25 @@
-const DELAY_PATTERN = /(@\d+[smhd])/i;
-
-interface Part {
-  text: string;
-  isDelay: boolean;
-}
-
-function parseParts(text: string): Part[] {
-  return text
-    .split(DELAY_PATTERN)
-    .map((part) => ({ text: part, isDelay: DELAY_PATTERN.test(part) }));
-}
+import { parseTokens, TOKEN_COLORS } from "@/lib/grammar";
+import { useTheme } from "@/lib/theme/context";
 
 export default function NoteText({ text }: { text: string }) {
-  const parts = parseParts(text);
+  const { isDark } = useTheme();
+  const tokens = parseTokens(text);
+
+  const textColor = isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.8)";
 
   return (
     <>
-      {parts.map((part, i) =>
-        part.isDelay ? (
-          <span key={i} style={{ color: "#f07167" }}>
-            {part.text}
-          </span>
-        ) : (
-          <span key={i} style={{ color: "rgba(255,255,255,0.8)" }}>{part.text}</span>
-        )
-      )}
+      {tokens.map((token, i) => (
+        <span
+          key={i}
+          style={{
+            color:
+              token.type === "text" ? textColor : TOKEN_COLORS[token.type],
+          }}
+        >
+          {token.text}
+        </span>
+      ))}
     </>
   );
 }

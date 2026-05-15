@@ -1,6 +1,9 @@
 mod tray;
 mod window;
 mod notifications;
+mod export;
+
+use tauri::Manager;
 
 #[cfg(test)]
 mod tests {
@@ -24,16 +27,29 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(notifications::NotificationQueue::new())
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             tray::setup_tray(app)?;
 
+            if let Err(e) = app.state::<notifications::NotificationQueue>().restore(app.handle().clone()) {
+                tauri_plugin_log::log::warn!("Failed to restore notification queue: {e}");
+            }
+
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![notifications::register_notification])
+        .invoke_handler(tauri::generate_handler![
+            notifications::register_notification,
+            notifications::cancel_notification,
+            notifications::list_pending_notifications,
+            export::write_export_files,
+            export::run_shell_command,
+            tray::refresh_tray,
+        ])
         .on_window_event(window::on_window_event)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

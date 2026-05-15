@@ -1,6 +1,7 @@
 import { register } from "@tauri-apps/plugin-global-shortcut";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DEBOUNCE_DELAY, GLOBAL_SHORTCUTS_KEY } from "@/lib/shortcut/constants";
+import { startShortcutSession, clearSession } from "@/lib/telemetry/session";
 
 let lastTrigger = 0;
 
@@ -17,9 +18,11 @@ export async function registerShortcut() {
         const visible = await appWindow.isVisible();
         if (visible) {
           await appWindow.hide();
+          clearSession();
         } else {
           await appWindow.show();
           await appWindow.setFocus();
+          startShortcutSession();
         }
       } catch (error) {}
     });

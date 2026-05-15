@@ -6,5 +6,7 @@ export const storeOptions: StoreOptions = {
 };
 
 const STORAGE_KEY = "notes";
+const SETTINGS_KEY = "settings";
 const STORE_PATH = `${STORAGE_KEY}.json`;
-export { STORAGE_KEY, STORE_PATH };
+export const DEFAULT_TTL_HOURS = 24;
+export { STORAGE_KEY, SETTINGS_KEY, STORE_PATH };

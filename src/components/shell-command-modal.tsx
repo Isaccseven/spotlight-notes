@@ -52,7 +52,7 @@ export default function ShellCommandModal({ open, output, onClose, onRun, onChan
                 onClose();
               }
             }}
-            placeholder="echo '{text}' | pbcopy"
+            placeholder="pbcopy"
             className="flex-1 bg-transparent text-white/90 text-sm outline-none placeholder-white/30"
           />
         </div>

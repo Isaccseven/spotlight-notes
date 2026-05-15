@@ -3,14 +3,19 @@ import {
   isPermissionGranted,
   requestPermission,
 } from "@tauri-apps/plugin-notification";
+import { ScheduledNotification } from "@/types/notification";
 
-export async function registerNotification(message: string) {
+export async function registerNotification(
+  message: string,
+): Promise<ScheduledNotification | null> {
   let granted = await isPermissionGranted();
   if (!granted) {
     const permission = await requestPermission();
     granted = permission === "granted";
   }
-  if (!granted) return;
+  if (!granted) return null;
 
-  await invoke("register_notification", { message });
+  return await invoke<ScheduledNotification>("register_notification", {
+    message,
+  });
 }

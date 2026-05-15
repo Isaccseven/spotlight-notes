@@ -373,10 +373,14 @@ export function useNotes() {
     }
   };
 
-  const handleNoteKeyDown = async (e: React.KeyboardEvent, i: number) => {
+  const handleNoteKeyDown = async (
+    e: React.KeyboardEvent,
+    noteId: string,
+    i: number,
+    total: number,
+  ) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
       e.preventDefault();
-      const noteId = filteredNotes[i].id;
       await togglePin(noteId);
       return;
     }
@@ -405,13 +409,12 @@ export function useNotes() {
 
     if (e.key === "Tab" && !e.shiftKey) {
       e.preventDefault();
-      i < filteredNotes.length - 1 ? setFocusedIndex(i + 1) : focusInput();
+      i < total - 1 ? setFocusedIndex(i + 1) : focusInput();
     } else if (e.key === "Tab" && e.shiftKey) {
       e.preventDefault();
       i > 0 ? setFocusedIndex(i - 1) : focusInput();
     } else if (e.key === "Backspace") {
       e.preventDefault();
-      const noteId = filteredNotes[i].id;
       const updated = notesRef.current.filter((n) => n.id !== noteId);
       const nextFiltered = updated.filter((n) =>
         text.trim()

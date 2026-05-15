@@ -10,7 +10,7 @@ interface Props {
   query?: string;
   focusedIndex: number | null;
   noteRefs: React.MutableRefObject<(HTMLDivElement | null)[]>;
-  onKeyDown: (e: React.KeyboardEvent, i: number) => void;
+  onKeyDown: (e: React.KeyboardEvent, noteId: string, i: number, total: number) => void;
   onDelete: (id: string) => void;
   onTogglePin: (id: string) => void;
   getNoteTtl: (note: Note) => string | null;
@@ -131,7 +131,7 @@ export default function NoteList({
                 noteRefs.current[i] = el;
               }}
               tabIndex={-1}
-              onKeyDown={(e) => onKeyDown(e, i)}
+              onKeyDown={(e) => onKeyDown(e, note.id, i, flatList.length)}
               className={`flex flex-col gap-1 py-2 rounded-lg px-2 -mx-2 outline-none transition-colors group ${
                 focusedIndex === i
                   ? isDark

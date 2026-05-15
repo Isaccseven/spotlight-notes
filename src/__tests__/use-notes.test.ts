@@ -205,7 +205,9 @@ describe("useNotes", () => {
     await act(async () => {
       result.current.handleNoteKeyDown(
         { key: "Backspace", preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
+        "1",
         0,
+        2,
       );
     });
 
@@ -228,7 +230,9 @@ describe("useNotes", () => {
     await act(async () => {
       result.current.handleNoteKeyDown(
         { key: "Escape", preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
+        "1",
         0,
+        1,
       );
     });
 
@@ -470,7 +474,9 @@ describe("useNotes", () => {
     await act(async () => {
       result.current.handleNoteKeyDown(
         { key: "p", ctrlKey: true, preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
+        "1",
         0,
+        1,
       );
     });
 
@@ -492,7 +498,9 @@ describe("useNotes", () => {
     await act(async () => {
       result.current.handleNoteKeyDown(
         { key: "p", metaKey: true, preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
+        "1",
         0,
+        1,
       );
     });
 
@@ -1029,7 +1037,9 @@ describe("useNotes", () => {
       await act(async () => {
         result.current.handleNoteKeyDown(
           { key: "g", shiftKey: true, ctrlKey: true, preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
+          "1",
           0,
+          2,
         );
       });
 
@@ -1053,7 +1063,9 @@ describe("useNotes", () => {
       await act(async () => {
         result.current.handleNoteKeyDown(
           { key: "h", shiftKey: true, ctrlKey: true, preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
+          "2",
           1,
+          2,
         );
       });
 

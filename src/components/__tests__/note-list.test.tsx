@@ -63,7 +63,7 @@ describe("NoteList", () => {
     );
     const rows = container.querySelectorAll("[tabIndex='-1']");
     fireEvent.keyDown(rows[2], { key: "Backspace" });
-    expect(onKeyDown).toHaveBeenCalledWith(expect.anything(), 2);
+    expect(onKeyDown).toHaveBeenCalledWith(expect.anything(), "3", 2, 3);
   });
 
   it("calls onTogglePin when pin button is clicked", () => {

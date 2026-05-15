@@ -8,7 +8,7 @@ function App() {
   const {
     text,
     setText,
-    notes,
+    filteredNotes,
     focusedIndex,
     inputRef,
     noteRefs,
@@ -28,7 +28,7 @@ function App() {
       />
 
       <NoteList
-        notes={notes}
+        notes={filteredNotes}
         focusedIndex={focusedIndex}
         noteRefs={noteRefs}
         onKeyDown={handleNoteKeyDown}

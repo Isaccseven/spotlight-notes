@@ -11,7 +11,7 @@ interface Props {
   focusedIndex: number | null;
   noteRefs: React.MutableRefObject<(HTMLDivElement | null)[]>;
   onKeyDown: (e: React.KeyboardEvent, i: number) => void;
-  onDelete: (i: number) => void;
+  onDelete: (id: string) => void;
 }
 
 export default function NoteList({
@@ -46,7 +46,7 @@ export default function NoteList({
             <NoteText text={note.text} />
           </span>
           <button
-            onClick={() => onDelete(i)}
+            onClick={() => onDelete(note.id)}
             className="flex-shrink-0 opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center transition-all"
           >
             <DeleteIcon />

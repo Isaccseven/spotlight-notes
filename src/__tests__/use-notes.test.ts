@@ -117,13 +117,11 @@ describe("useNotes", () => {
     expect(result.current.notes).toHaveLength(0);
   });
 
-  it("saveNote registers notification when text contains @", async () => {
-    vi.useFakeTimers();
+  it("saveNote invokes register_notification when text contains @", async () => {
     const { useNotes } = await import("@/lib/store/use-notes");
     const { result } = renderHook(() => useNotes());
 
-    const sendNotification = (await import("@tauri-apps/plugin-notification"))
-      .sendNotification;
+    const { invoke } = await import("@tauri-apps/api/core");
 
     await act(async () => {
       result.current.setText("remind me @10s");
@@ -136,15 +134,12 @@ describe("useNotes", () => {
       } as unknown as React.KeyboardEvent);
     });
 
-    act(() => {
-      vi.advanceTimersByTime(10_000);
+    expect(invoke).toHaveBeenCalledWith("register_notification", {
+      message: "remind me @10s",
     });
-
-    expect(sendNotification).toHaveBeenCalled();
-    vi.useRealTimers();
   });
 
-  it("deleteNote removes a note by index and persists", async () => {
+  it("deleteNote removes a note by id and persists", async () => {
     const { useNotes } = await import("@/lib/store/use-notes");
 
     mockStore.get.mockResolvedValue([
@@ -160,7 +155,7 @@ describe("useNotes", () => {
     });
 
     await act(async () => {
-      await result.current.deleteNote(1);
+      await result.current.deleteNote("2");
     });
 
     expect(result.current.notes).toHaveLength(2);
@@ -291,5 +286,95 @@ describe("useNotes", () => {
     expect(result.current.notes).toHaveLength(2);
     expect(result.current.notes[0].text).toBe("newest");
     expect(result.current.notes[1].text).toBe("existing");
+  });
+
+  it("filteredNotes returns all notes when text is empty", async () => {
+    mockStore.get.mockResolvedValue([
+      { id: "1", text: "alpha" },
+      { id: "2", text: "beta" },
+    ]);
+
+    const { useNotes } = await import("@/lib/store/use-notes");
+    const { result } = renderHook(() => useNotes());
+
+    await vi.waitFor(() => {
+      expect(result.current.notes).toHaveLength(2);
+    });
+
+    expect(result.current.filteredNotes).toHaveLength(2);
+    expect(result.current.filteredNotes[0].text).toBe("alpha");
+    expect(result.current.filteredNotes[1].text).toBe("beta");
+  });
+
+  it("filteredNotes filters notes by text query", async () => {
+    mockStore.get.mockResolvedValue([
+      { id: "1", text: "buy milk" },
+      { id: "2", text: "call mom" },
+      { id: "3", text: "milkshake" },
+    ]);
+
+    const { useNotes } = await import("@/lib/store/use-notes");
+    const { result } = renderHook(() => useNotes());
+
+    await vi.waitFor(() => {
+      expect(result.current.notes).toHaveLength(3);
+    });
+
+    await act(async () => {
+      result.current.setText("milk");
+    });
+
+    expect(result.current.filteredNotes).toHaveLength(2);
+    expect(result.current.filteredNotes[0].id).toBe("1");
+    expect(result.current.filteredNotes[1].id).toBe("3");
+  });
+
+  it("filteredNotes is case-insensitive", async () => {
+    mockStore.get.mockResolvedValue([
+      { id: "1", text: "Buy Milk" },
+    ]);
+
+    const { useNotes } = await import("@/lib/store/use-notes");
+    const { result } = renderHook(() => useNotes());
+
+    await vi.waitFor(() => {
+      expect(result.current.notes).toHaveLength(1);
+    });
+
+    await act(async () => {
+      result.current.setText("milk");
+    });
+
+    expect(result.current.filteredNotes).toHaveLength(1);
+  });
+
+  it("saving a note clears text and resets filteredNotes", async () => {
+    mockStore.get.mockResolvedValue([
+      { id: "1", text: "alpha" },
+      { id: "2", text: "beta" },
+    ]);
+
+    const { useNotes } = await import("@/lib/store/use-notes");
+    const { result } = renderHook(() => useNotes());
+
+    await vi.waitFor(() => {
+      expect(result.current.notes).toHaveLength(2);
+    });
+
+    await act(async () => {
+      result.current.setText("alpha");
+    });
+
+    expect(result.current.filteredNotes).toHaveLength(1);
+
+    await act(async () => {
+      await result.current.handleInputKeyDown({
+        key: "Enter",
+        preventDefault: vi.fn(),
+      } as unknown as React.KeyboardEvent);
+    });
+
+    expect(result.current.text).toBe("");
+    expect(result.current.filteredNotes).toHaveLength(3);
   });
 });

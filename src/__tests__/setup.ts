@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
 
 vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn().mockResolvedValue({
@@ -35,4 +36,8 @@ vi.mock("@tauri-apps/plugin-notification", () => ({
   isPermissionGranted: vi.fn().mockResolvedValue(true),
   requestPermission: vi.fn().mockResolvedValue("granted"),
   sendNotification: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn().mockResolvedValue(undefined),
 }));

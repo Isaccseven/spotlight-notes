@@ -1,5 +1,15 @@
 mod tray;
 mod window;
+mod notifications;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_modules_compile() {
+        // Verifies that all backend modules compile correctly.
+        let _ = crate::notifications::parse_delay_ms;
+    }
+}
 
 pub fn run() {
     tauri::Builder::default()
@@ -23,6 +33,7 @@ pub fn run() {
 
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![notifications::register_notification])
         .on_window_event(window::on_window_event)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

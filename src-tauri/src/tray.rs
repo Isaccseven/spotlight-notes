@@ -21,6 +21,8 @@ pub struct TrayState {
 struct Note {
     id: String,
     text: String,
+    #[serde(default)]
+    created_at: u64,
 }
 
 fn format_note_preview(text: &str) -> String {
@@ -46,7 +48,12 @@ fn fetch_notes(app: &tauri::AppHandle) -> Vec<Note> {
 }
 
 fn today_count(notes: &[Note]) -> usize {
-    notes.len()
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let day_ms = 24 * 60 * 60 * 1000;
+    notes.iter().filter(|n| now.saturating_sub(n.created_at) < day_ms).count()
 }
 
 fn build_tray_menu(
@@ -54,7 +61,7 @@ fn build_tray_menu(
     state: &TrayState,
 ) -> tauri::Result<Menu<tauri::Wry>> {
     let notes = fetch_notes(app);
-    let recent: Vec<_> = notes.iter().take(MAX_RECENT_NOTES).collect();
+    let recent: Vec<_> = notes.iter().rev().take(MAX_RECENT_NOTES).collect();
 
     let today_label = format!("Today: {} captures", today_count(&notes));
     let today_item = MenuItem::with_id(app, "today", today_label, false, None::<&str>)?;
@@ -146,10 +153,15 @@ pub fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
     let state: tauri::State<TrayState> = app.state();
     let menu = build_tray_menu(app.handle(), &state)?;
 
-    let builder = TrayIconBuilder::with_id(TRAY_ID)
-        .icon(app.default_window_icon().unwrap().clone())
+    let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .menu(&menu)
-        .tooltip("Spotlight Notes")
+        .tooltip("Spotlight Notes");
+
+    if let Some(icon) = app.default_window_icon().cloned() {
+        builder = builder.icon(icon);
+    }
+
+    let builder = builder
         .on_menu_event(move |app, event| match event.id.as_ref() {
             "toggle" => {
                 if let Some(window) = app.get_webview_window("main") {
@@ -269,17 +281,35 @@ mod tests {
 
     #[test]
     fn test_today_count_some() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
         let notes = vec![
             Note {
                 id: "1".to_string(),
                 text: "a".to_string(),
+                created_at: now,
             },
             Note {
                 id: "2".to_string(),
                 text: "b".to_string(),
+                created_at: now - 1000,
             },
         ];
         assert_eq!(today_count(&notes), 2);
+    }
+
+    #[test]
+    fn test_today_count_ignores_old() {
+        let notes = vec![
+            Note {
+                id: "1".to_string(),
+                text: "a".to_string(),
+                created_at: 0,
+            },
+        ];
+        assert_eq!(today_count(&notes), 0);
     }
 
     #[test]

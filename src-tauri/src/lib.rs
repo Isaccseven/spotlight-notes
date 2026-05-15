@@ -36,8 +36,8 @@ pub fn run() {
 
             tray::setup_tray(app)?;
 
-            if let Ok(queue) = app.state::<notifications::NotificationQueue>().restore(app.handle().clone()) {
-                let _ = queue;
+            if let Err(e) = app.state::<notifications::NotificationQueue>().restore(app.handle().clone()) {
+                tauri_plugin_log::log::warn!("Failed to restore notification queue: {e}");
             }
 
             Ok(())

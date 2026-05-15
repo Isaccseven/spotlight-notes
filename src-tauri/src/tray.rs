@@ -21,7 +21,7 @@ pub struct TrayState {
 struct Note {
     id: String,
     text: String,
-    #[serde(default)]
+    #[serde(default, rename = "createdAt")]
     created_at: u64,
 }
 
@@ -319,5 +319,12 @@ mod tests {
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].id, "1");
         assert_eq!(notes[0].text, "hello");
+    }
+
+    #[test]
+    fn test_note_deserialization_created_at_camelcase() {
+        let json = r#"[{"id":"1","text":"hello","createdAt":12345}]"#;
+        let notes: Vec<Note> = serde_json::from_str(json).unwrap();
+        assert_eq!(notes[0].created_at, 12345);
     }
 }

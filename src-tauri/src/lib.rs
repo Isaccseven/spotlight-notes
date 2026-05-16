@@ -2,6 +2,8 @@ mod tray;
 mod window;
 mod notifications;
 mod export;
+mod grammar;
+mod shortcuts;
 
 use tauri::Manager;
 
@@ -9,8 +11,8 @@ use tauri::Manager;
 mod tests {
     #[test]
     fn test_modules_compile() {
-        // Verifies that all backend modules compile correctly.
-        let _ = crate::notifications::parse_delay_ms;
+        let _ = crate::grammar::parse_note;
+        let _ = crate::notifications::NotificationQueue::new;
     }
 }
 
@@ -26,7 +28,17 @@ pub fn run() {
         )
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        if let Some(registry) = app.try_state::<shortcuts::ShortcutRegistry>() {
+                            let _ = registry.handle_global(app, shortcut);
+                        }
+                    }
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(notifications::NotificationQueue::new())
@@ -35,6 +47,10 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             tray::setup_tray(app)?;
+
+            if let Err(e) = shortcuts::setup_shortcuts(app) {
+                tauri_plugin_log::log::warn!("Failed to setup shortcuts: {e}");
+            }
 
             if let Err(e) = app.state::<notifications::NotificationQueue>().restore(app.handle().clone()) {
                 tauri_plugin_log::log::warn!("Failed to restore notification queue: {e}");
@@ -46,9 +62,12 @@ pub fn run() {
             notifications::register_notification,
             notifications::cancel_notification,
             notifications::list_pending_notifications,
+            grammar::parse_note_command,
             export::write_export_files,
             export::run_shell_command,
             tray::refresh_tray,
+            shortcuts::get_shortcut_registry,
+            shortcuts::handle_local_shortcut,
         ])
         .on_window_event(window::on_window_event)
         .run(tauri::generate_context!())

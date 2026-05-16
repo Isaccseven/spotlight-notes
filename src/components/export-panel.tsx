@@ -23,7 +23,7 @@ export default function ExportPanel({ notes, open, exporting, onExport, onClose 
   if (!open) return null;
 
   return (
-    <div className="absolute inset-x-0 top-full z-50 px-3 pt-2">
+    <div data-modal className="absolute inset-x-0 top-full z-50 px-3 pt-2">
       <div className="bg-[#1a1a1a]/95 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl p-4 max-w-[640px] mx-auto">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-white/90 text-sm font-medium">Export {notes.length} note{notes.length === 1 ? "" : "s"}</h3>

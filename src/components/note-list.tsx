@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import DeleteIcon from "@/components/icons/DeleteIcon";
 import PinIcon from "@/components/icons/PinIcon";
 import NoteText from "@/components/note-text";
+import NoteBadges from "@/components/note-badges";
 import { useTheme } from "@/lib/theme/context";
 import type { Note } from "@/types/note";
 
@@ -10,12 +11,12 @@ interface Props {
   query?: string;
   focusedIndex: number | null;
   noteRefs: React.MutableRefObject<(HTMLDivElement | null)[]>;
-  onKeyDown: (e: React.KeyboardEvent, noteId: string, i: number, total: number) => void;
   onDelete: (id: string) => void;
   onTogglePin: (id: string) => void;
   getNoteTtl: (note: Note) => string | null;
   classifyBuffer: (id: string, action: "tag" | "remind" | "discard") => void;
   promptsVisible: boolean;
+  onTagClick?: (tag: string) => void;
 }
 
 export default function NoteList({
@@ -23,12 +24,12 @@ export default function NoteList({
   query,
   focusedIndex,
   noteRefs,
-  onKeyDown,
   onDelete,
   onTogglePin,
   getNoteTtl,
   classifyBuffer,
   promptsVisible,
+  onTagClick,
 }: Props) {
   const { isDark } = useTheme();
 
@@ -39,8 +40,6 @@ export default function NoteList({
   const isFiltering = trimmedQuery.length > 0;
 
   const { flatList, groupHeaders, summary } = useMemo(() => {
-    // Build tag groups from the (already filtered) notes so grouping is
-    // consistent regardless of whether we are in a plain-text or tag query.
     const localTagGroups: Record<string, Note[]> = {};
     for (const note of notes) {
       for (const tag of note.tags ?? []) {
@@ -49,7 +48,6 @@ export default function NoteList({
       }
     }
 
-    // Plain-text filter: flat list, no headers.
     if (isFiltering && !isTagFilter) {
       return {
         flatList: notes,
@@ -130,8 +128,8 @@ export default function NoteList({
               ref={(el) => {
                 noteRefs.current[i] = el;
               }}
+              data-note-index={i}
               tabIndex={-1}
-              onKeyDown={(e) => onKeyDown(e, note.id, i, flatList.length)}
               className={`flex flex-col gap-1 py-2 rounded-lg px-2 -mx-2 outline-none transition-colors group ${
                 focusedIndex === i
                   ? isDark
@@ -159,8 +157,9 @@ export default function NoteList({
                     isDark ? "text-white/80" : "text-black/80"
                   }`}
                 >
-                  <NoteText text={note.text} />
+                  <NoteText text={note.text} onTagClick={onTagClick} />
                 </span>
+                <NoteBadges text={note.text} />
                 {ttl && (
                   <span
                     className={`text-[10px] flex-shrink-0 ${

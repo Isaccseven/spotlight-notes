@@ -16,7 +16,6 @@ describe("NoteList", () => {
   const defaultProps = {
     focusedIndex: null as number | null,
     noteRefs: { current: [] } as React.MutableRefObject<(HTMLDivElement | null)[]>,
-    onKeyDown: vi.fn(),
     onDelete: vi.fn(),
     onTogglePin,
     getNoteTtl,
@@ -54,16 +53,6 @@ describe("NoteList", () => {
     const buttons = screen.getAllByRole("button");
     fireEvent.click(buttons[3]);
     expect(onDelete).toHaveBeenCalledWith("2");
-  });
-
-  it("calls onKeyDown with index on keydown", () => {
-    const onKeyDown = vi.fn();
-    const { container } = render(
-      <NoteList notes={notes} {...defaultProps} onKeyDown={onKeyDown} />,
-    );
-    const rows = container.querySelectorAll("[tabIndex='-1']");
-    fireEvent.keyDown(rows[2], { key: "Backspace" });
-    expect(onKeyDown).toHaveBeenCalledWith(expect.anything(), "3", 2, 3);
   });
 
   it("calls onTogglePin when pin button is clicked", () => {

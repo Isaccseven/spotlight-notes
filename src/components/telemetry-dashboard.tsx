@@ -82,7 +82,7 @@ export default function TelemetryDashboard({ onClose }: Props) {
     useTelemetry();
 
   return (
-    <div className="px-5 py-4 space-y-4">
+    <div data-modal className="px-5 py-4 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-white text-lg font-semibold">Your Stats</h2>
         <div className="flex items-center gap-2">

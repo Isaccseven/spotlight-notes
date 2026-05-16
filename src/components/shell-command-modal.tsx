@@ -4,7 +4,7 @@ interface Props {
   open: boolean;
   output: string;
   onClose: () => void;
-  onRun: () => void;
+  onRun?: () => void;
   onChange: (value: string) => void;
 }
 
@@ -22,7 +22,7 @@ export default function ShellCommandModal({ open, output, onClose, onRun, onChan
   if (!open) return null;
 
   return (
-    <div className="absolute inset-x-0 top-full z-50 px-3 pt-2">
+    <div data-modal className="absolute inset-x-0 top-full z-50 px-3 pt-2">
       <div className="bg-[#1a1a1a]/95 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl p-4 max-w-[640px] mx-auto">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-white/90 text-sm font-medium">Run Shell Command</h3>
@@ -45,12 +45,7 @@ export default function ShellCommandModal({ open, output, onClose, onRun, onChan
               onChange(e.target.value);
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                onRun();
-              } else if (e.key === "Escape") {
-                onClose();
-              }
+              if (e.key === "Enter" && onRun) onRun();
             }}
             placeholder="pbcopy"
             className="flex-1 bg-transparent text-white/90 text-sm outline-none placeholder-white/30"

@@ -5,14 +5,20 @@ import { Note } from "@/types/note";
 const STORAGE_KEY = "notes";
 
 function createMockStore() {
-  let data: Record<string, unknown> = {};
+  const data: Record<string, unknown> = {};
   return {
-    get: vi.fn(async <T>(key: string): Promise<T | null> =>
-      key === STORAGE_KEY ? (data[key] as T) ?? null : null,
-    ),
+    get: vi.fn(async <T>(key: string): Promise<T | null> => (data[key] as T) ?? null),
     set: vi.fn(async (key: string, value: unknown) => {
-      if (key === STORAGE_KEY) data[key] = value;
+      data[key] = value;
     }),
+    _setData: (key: string, value: unknown) => {
+      data[key] = value;
+    },
+    _clear: () => {
+      for (const key of Object.keys(data)) {
+        delete data[key];
+      }
+    },
   };
 }
 
@@ -49,6 +55,7 @@ vi.mock("@tauri-apps/plugin-notification", () => ({
 
 describe("useNotes", () => {
   beforeEach(() => {
+    mockStore._clear();
     vi.clearAllMocks();
   });
 
@@ -56,7 +63,7 @@ describe("useNotes", () => {
     const saved: Note[] = [
       { id: "1", text: "saved note", createdAt: 1000, pinned: false },
     ];
-    mockStore.get.mockResolvedValue(saved);
+    mockStore._setData("notes",saved);
 
     const { useNotes } = await import("@/lib/store/use-notes");
     const { result } = renderHook(() => useNotes());
@@ -67,7 +74,7 @@ describe("useNotes", () => {
   });
 
   it("starts with empty state when no saved notes", async () => {
-    mockStore.get.mockResolvedValue(null);
+    mockStore._setData("notes",null);
 
     const { useNotes } = await import("@/lib/store/use-notes");
     const { result } = renderHook(() => useNotes());
@@ -81,18 +88,18 @@ describe("useNotes", () => {
     const { useNotes } = await import("@/lib/store/use-notes");
     const { result } = renderHook(() => useNotes());
 
-    await act(async () => {
+    act(() => {
       result.current.setText("hello world");
     });
 
-    await act(async () => {
-      await result.current.handleInputKeyDown({
-        key: "Enter",
-        preventDefault: vi.fn(),
-      } as unknown as React.KeyboardEvent);
+    act(() => {
+      result.current.submit();
     });
 
-    expect(result.current.notes).toHaveLength(1);
+    await vi.waitFor(() => {
+      expect(result.current.notes).toHaveLength(1);
+    });
+
     expect(result.current.notes[0].text).toBe("hello world");
     expect(result.current.notes[0].id).toBeTruthy();
     expect(result.current.notes[0].pinned).toBe(false);
@@ -105,46 +112,47 @@ describe("useNotes", () => {
     const { useNotes } = await import("@/lib/store/use-notes");
     const { result } = renderHook(() => useNotes());
 
-    await act(async () => {
+    act(() => {
       result.current.setText("   ");
     });
 
-    await act(async () => {
-      await result.current.handleInputKeyDown({
-        key: "Enter",
-        preventDefault: vi.fn(),
-      } as unknown as React.KeyboardEvent);
+    act(() => {
+      result.current.submit();
     });
 
     expect(result.current.notes).toHaveLength(0);
   });
 
-  it("saveNote invokes register_notification when text contains @", async () => {
+  it("saveNote invokes parse_note_command and register_notification when text contains @", async () => {
     const { useNotes } = await import("@/lib/store/use-notes");
     const { result } = renderHook(() => useNotes());
 
     const { invoke } = await import("@tauri-apps/api/core");
 
-    await act(async () => {
+    act(() => {
       result.current.setText("remind me @10s");
     });
 
-    await act(async () => {
-      await result.current.handleInputKeyDown({
-        key: "Enter",
-        preventDefault: vi.fn(),
-      } as unknown as React.KeyboardEvent);
+    act(() => {
+      result.current.submit();
     });
 
-    expect(invoke).toHaveBeenCalledWith("register_notification", {
-      message: "remind me @10s",
+    await vi.waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("parse_note_command", {
+        text: "remind me @10s",
+      });
+    });
+    await vi.waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("register_notification", {
+        message: "remind me @10s",
+      });
     });
   });
 
   it("deleteNote removes a note by id and persists", async () => {
     const { useNotes } = await import("@/lib/store/use-notes");
 
-    mockStore.get.mockResolvedValue([
+    mockStore._setData("notes",[
       { id: "1", text: "first", createdAt: 1000, pinned: false },
       { id: "2", text: "second", createdAt: 2000, pinned: false },
       { id: "3", text: "third", createdAt: 3000, pinned: false },
@@ -156,8 +164,8 @@ describe("useNotes", () => {
       expect(result.current.notes).toHaveLength(3);
     });
 
-    await act(async () => {
-      await result.current.deleteNote("2");
+    act(() => {
+      result.current.deleteNote("2");
     });
 
     expect(result.current.notes).toHaveLength(2);
@@ -166,8 +174,8 @@ describe("useNotes", () => {
     expect(mockStore.set).toHaveBeenCalled();
   });
 
-  it("handleInputKeyDown with Tab moves focus to first note", async () => {
-    mockStore.get.mockResolvedValue([
+  it("focus moves focus to first note", async () => {
+    mockStore._setData("notes",[
       { id: "1", text: "note 1", createdAt: 1000, pinned: false },
     ]);
 
@@ -178,19 +186,15 @@ describe("useNotes", () => {
       expect(result.current.notes).toHaveLength(1);
     });
 
-    await act(async () => {
-      result.current.handleInputKeyDown({
-        key: "Tab",
-        shiftKey: false,
-        preventDefault: vi.fn(),
-      } as unknown as React.KeyboardEvent);
+    act(() => {
+      result.current.focus(0);
     });
 
     expect(result.current.focusedIndex).toBe(0);
   });
 
-  it("handleNoteKeyDown with Backspace deletes and focuses previous", async () => {
-    mockStore.get.mockResolvedValue([
+  it("deleteNote removes a note and resets focus", async () => {
+    mockStore._setData("notes",[
       { id: "1", text: "first", createdAt: 1000, pinned: false },
       { id: "2", text: "second", createdAt: 1000, pinned: false },
     ]);
@@ -202,21 +206,20 @@ describe("useNotes", () => {
       expect(result.current.notes).toHaveLength(2);
     });
 
-    await act(async () => {
-      result.current.handleNoteKeyDown(
-        { key: "Backspace", preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
-        "1",
-        0,
-        2,
-      );
+    act(() => {
+      result.current.focus(0);
+    });
+
+    act(() => {
+      result.current.deleteNote("1");
     });
 
     expect(result.current.notes).toHaveLength(1);
     expect(result.current.notes[0].text).toBe("second");
   });
 
-  it("handleNoteKeyDown with Escape focuses input", async () => {
-    mockStore.get.mockResolvedValue([
+  it("focusInput resets focus to null", async () => {
+    mockStore._setData("notes",[
       { id: "1", text: "note", createdAt: 1000, pinned: false },
     ]);
 
@@ -227,47 +230,21 @@ describe("useNotes", () => {
       expect(result.current.notes).toHaveLength(1);
     });
 
-    await act(async () => {
-      result.current.handleNoteKeyDown(
-        { key: "Escape", preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
-        "1",
-        0,
-        1,
-      );
+    act(() => {
+      result.current.focus(0);
+    });
+
+    expect(result.current.focusedIndex).toBe(0);
+
+    act(() => {
+      result.current.focusInput();
     });
 
     expect(result.current.focusedIndex).toBeNull();
   });
 
-  it("Escape on input clears text when non-empty", async () => {
-    const { useNotes } = await import("@/lib/store/use-notes");
-    const { result } = renderHook(() => useNotes());
-
-    await act(async () => {
-      result.current.setText("some text");
-    });
-
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-
-    act(() => {
-      result.current.inputRef.current = input;
-      input.focus();
-    });
-
-    act(() => {
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    });
-
-    await vi.waitFor(() => {
-      expect(result.current.text).toBe("");
-    });
-
-    document.body.innerHTML = "";
-  });
-
   it("prepends new notes (most recent first)", async () => {
-    mockStore.get.mockResolvedValue([
+    mockStore._setData("notes",[
       { id: "1", text: "existing", createdAt: 1000, pinned: false },
     ]);
 
@@ -278,24 +255,24 @@ describe("useNotes", () => {
       expect(result.current.notes).toHaveLength(1);
     });
 
-    await act(async () => {
+    act(() => {
       result.current.setText("newest");
     });
 
-    await act(async () => {
-      await result.current.handleInputKeyDown({
-        key: "Enter",
-        preventDefault: vi.fn(),
-      } as unknown as React.KeyboardEvent);
+    act(() => {
+      result.current.submit();
     });
 
-    expect(result.current.notes).toHaveLength(2);
+    await vi.waitFor(() => {
+      expect(result.current.notes).toHaveLength(2);
+    });
+
     expect(result.current.notes[0].text).toBe("newest");
     expect(result.current.notes[1].text).toBe("existing");
   });
 
   it("filteredNotes returns all notes when text is empty", async () => {
-    mockStore.get.mockResolvedValue([
+    mockStore._setData("notes",[
       { id: "1", text: "alpha", createdAt: 1000, pinned: false },
       { id: "2", text: "beta", createdAt: 1000, pinned: false },
     ]);
@@ -313,7 +290,7 @@ describe("useNotes", () => {
   });
 
   it("filteredNotes filters notes by text query", async () => {
-    mockStore.get.mockResolvedValue([
+    mockStore._setData("notes",[
       { id: "1", text: "buy milk", createdAt: 1000, pinned: false },
       { id: "2", text: "call mom", createdAt: 1000, pinned: false },
       { id: "3", text: "milkshake", createdAt: 1000, pinned: false },
@@ -326,7 +303,7 @@ describe("useNotes", () => {
       expect(result.current.notes).toHaveLength(3);
     });
 
-    await act(async () => {
+    act(() => {
       result.current.setText("milk");
     });
 
@@ -336,7 +313,7 @@ describe("useNotes", () => {
   });
 
   it("filteredNotes is case-insensitive", async () => {
-    mockStore.get.mockResolvedValue([
+    mockStore._setData("notes",[
       { id: "1", text: "Buy Milk", createdAt: 1000, pinned: false },
     ]);
 
@@ -347,7 +324,7 @@ describe("useNotes", () => {
       expect(result.current.notes).toHaveLength(1);
     });
 
-    await act(async () => {
+    act(() => {
       result.current.setText("milk");
     });
 
@@ -355,7 +332,7 @@ describe("useNotes", () => {
   });
 
   it("saving a note clears text and resets filteredNotes", async () => {
-    mockStore.get.mockResolvedValue([
+    mockStore._setData("notes",[
       { id: "1", text: "alpha", createdAt: 1000, pinned: false },
       { id: "2", text: "beta", createdAt: 2000, pinned: false },
     ]);
@@ -367,25 +344,25 @@ describe("useNotes", () => {
       expect(result.current.notes).toHaveLength(2);
     });
 
-    await act(async () => {
+    act(() => {
       result.current.setText("alpha");
     });
 
     expect(result.current.filteredNotes).toHaveLength(1);
 
-    await act(async () => {
-      await result.current.handleInputKeyDown({
-        key: "Enter",
-        preventDefault: vi.fn(),
-      } as unknown as React.KeyboardEvent);
+    act(() => {
+      result.current.submit();
     });
 
-    expect(result.current.text).toBe("");
+    await vi.waitFor(() => {
+      expect(result.current.text).toBe("");
+    });
+
     expect(result.current.filteredNotes).toHaveLength(3);
   });
 
   it("togglePin toggles the pinned state of a note", async () => {
-    mockStore.get.mockResolvedValue([
+    mockStore._setData("notes",[
       { id: "1", text: "note", createdAt: 1000, pinned: false },
     ]);
 
@@ -396,21 +373,21 @@ describe("useNotes", () => {
       expect(result.current.notes).toHaveLength(1);
     });
 
-    await act(async () => {
-      await result.current.togglePin("1");
+    act(() => {
+      result.current.togglePin("1");
     });
 
     expect(result.current.notes[0].pinned).toBe(true);
 
-    await act(async () => {
-      await result.current.togglePin("1");
+    act(() => {
+      result.current.togglePin("1");
     });
 
     expect(result.current.notes[0].pinned).toBe(false);
   });
 
   it("pinned notes sort to the top", async () => {
-    mockStore.get.mockResolvedValue([
+    mockStore._setData("notes",[
       { id: "1", text: "older", createdAt: 1000, pinned: false },
       { id: "2", text: "newer", createdAt: 2000, pinned: true },
     ]);
@@ -427,7 +404,7 @@ describe("useNotes", () => {
   });
 
   it("getNoteTtl returns null for pinned notes", async () => {
-    mockStore.get.mockResolvedValue([
+    mockStore._setData("notes",[
       { id: "1", text: "pinned", createdAt: Date.now(), pinned: true },
     ]);
 
@@ -443,7 +420,7 @@ describe("useNotes", () => {
 
   it("getNoteTtl returns time remaining for unpinned notes", async () => {
     const now = Date.now();
-    mockStore.get.mockResolvedValue([
+    mockStore._setData("notes",[
       { id: "1", text: "unpinned", createdAt: now, pinned: false },
     ]);
 
@@ -459,8 +436,8 @@ describe("useNotes", () => {
     expect(ttl).not.toBe("expired");
   });
 
-  it("handleNoteKeyDown with Ctrl+P toggles pin", async () => {
-    mockStore.get.mockResolvedValue([
+  it("togglePin via action toggles pin", async () => {
+    mockStore._setData("notes",[
       { id: "1", text: "note", createdAt: 1000, pinned: false },
     ]);
 
@@ -471,44 +448,15 @@ describe("useNotes", () => {
       expect(result.current.notes).toHaveLength(1);
     });
 
-    await act(async () => {
-      result.current.handleNoteKeyDown(
-        { key: "p", ctrlKey: true, preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
-        "1",
-        0,
-        1,
-      );
-    });
-
-    expect(result.current.notes[0].pinned).toBe(true);
-  });
-
-  it("handleNoteKeyDown with Cmd+P toggles pin", async () => {
-    mockStore.get.mockResolvedValue([
-      { id: "1", text: "note", createdAt: 1000, pinned: false },
-    ]);
-
-    const { useNotes } = await import("@/lib/store/use-notes");
-    const { result } = renderHook(() => useNotes());
-
-    await vi.waitFor(() => {
-      expect(result.current.notes).toHaveLength(1);
-    });
-
-    await act(async () => {
-      result.current.handleNoteKeyDown(
-        { key: "p", metaKey: true, preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
-        "1",
-        0,
-        1,
-      );
+    act(() => {
+      result.current.togglePin("1");
     });
 
     expect(result.current.notes[0].pinned).toBe(true);
   });
 
   it("settings loads with default TTL", async () => {
-    mockStore.get.mockResolvedValue(null);
+    mockStore._setData("notes",null);
 
     const { useNotes } = await import("@/lib/store/use-notes");
     const { result } = renderHook(() => useNotes());
@@ -517,13 +465,13 @@ describe("useNotes", () => {
   });
 
   it("setTtlHours updates settings and persists", async () => {
-    mockStore.get.mockResolvedValue(null);
+    mockStore._setData("notes",null);
 
     const { useNotes } = await import("@/lib/store/use-notes");
     const { result } = renderHook(() => useNotes());
 
-    await act(async () => {
-      await result.current.setTtlHours(48);
+    act(() => {
+      result.current.setTtlHours(48);
     });
 
     expect(result.current.settings.ttlHours).toBe(48);
@@ -535,22 +483,23 @@ describe("useNotes", () => {
       const { useNotes } = await import("@/lib/store/use-notes");
       const { result } = renderHook(() => useNotes());
 
-      await act(async () => {
+      act(() => {
         result.current.setText("meeting notes #work #urgent");
       });
 
-      await act(async () => {
-        await result.current.handleInputKeyDown({
-          key: "Enter",
-          preventDefault: vi.fn(),
-        } as unknown as React.KeyboardEvent);
+      act(() => {
+        result.current.submit();
+      });
+
+      await vi.waitFor(() => {
+        expect(result.current.notes).toHaveLength(1);
       });
 
       expect(result.current.notes[0].tags).toEqual(["work", "urgent"]);
     });
 
     it("filters notes by tag when query starts with #", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "alpha", createdAt: 1000, pinned: false, tags: ["foo"] },
         { id: "2", text: "beta", createdAt: 1000, pinned: false, tags: ["bar"] },
         { id: "3", text: "gamma", createdAt: 1000, pinned: false, tags: ["foo", "baz"] },
@@ -563,7 +512,7 @@ describe("useNotes", () => {
         expect(result.current.notes).toHaveLength(3);
       });
 
-      await act(async () => {
+      act(() => {
         result.current.setText("#foo");
       });
 
@@ -573,7 +522,7 @@ describe("useNotes", () => {
     });
 
     it("tagGroups groups notes by tag", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "alpha", createdAt: 1000, pinned: false, tags: ["foo"] },
         { id: "2", text: "beta", createdAt: 1000, pinned: false, tags: ["bar"] },
         { id: "3", text: "gamma", createdAt: 1000, pinned: false, tags: ["foo", "baz"] },
@@ -596,7 +545,7 @@ describe("useNotes", () => {
     });
 
     it("getNotesByTag returns notes matching a tag", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "alpha", createdAt: 1000, pinned: false, tags: ["foo"] },
         { id: "2", text: "beta", createdAt: 1000, pinned: false, tags: ["bar"] },
         { id: "3", text: "gamma", createdAt: 1000, pinned: false, tags: ["foo", "baz"] },
@@ -616,7 +565,7 @@ describe("useNotes", () => {
     });
 
     it("getNotesByTag is case-insensitive", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "alpha", createdAt: 1000, pinned: false, tags: ["Foo"] },
       ]);
 
@@ -631,7 +580,7 @@ describe("useNotes", () => {
     });
 
     it("getAllTags returns sorted unique tags", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "a", createdAt: 1000, pinned: false, tags: ["zebra"] },
         { id: "2", text: "b", createdAt: 1000, pinned: false, tags: ["apple", "zebra"] },
         { id: "3", text: "c", createdAt: 1000, pinned: false },
@@ -648,7 +597,7 @@ describe("useNotes", () => {
     });
 
     it("addTag appends a new tag to a note", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "alpha", createdAt: 1000, pinned: false, tags: ["foo"] },
       ]);
 
@@ -659,15 +608,15 @@ describe("useNotes", () => {
         expect(result.current.notes).toHaveLength(1);
       });
 
-      await act(async () => {
-        await result.current.addTag("1", "bar");
+      act(() => {
+        result.current.addTag("1", "bar");
       });
 
       expect(result.current.notes[0].tags).toEqual(["foo", "bar"]);
     });
 
     it("addTag normalizes to lowercase", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "alpha", createdAt: 1000, pinned: false },
       ]);
 
@@ -678,15 +627,15 @@ describe("useNotes", () => {
         expect(result.current.notes).toHaveLength(1);
       });
 
-      await act(async () => {
-        await result.current.addTag("1", "WORK");
+      act(() => {
+        result.current.addTag("1", "WORK");
       });
 
       expect(result.current.notes[0].tags).toEqual(["work"]);
     });
 
     it("addTag is idempotent for duplicate tags", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "alpha", createdAt: 1000, pinned: false, tags: ["foo"] },
       ]);
 
@@ -697,15 +646,15 @@ describe("useNotes", () => {
         expect(result.current.notes).toHaveLength(1);
       });
 
-      await act(async () => {
-        await result.current.addTag("1", "foo");
+      act(() => {
+        result.current.addTag("1", "foo");
       });
 
       expect(result.current.notes[0].tags).toEqual(["foo"]);
     });
 
     it("removeTag deletes a tag from a note", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "alpha", createdAt: 1000, pinned: false, tags: ["foo", "bar"] },
       ]);
 
@@ -716,15 +665,15 @@ describe("useNotes", () => {
         expect(result.current.notes).toHaveLength(1);
       });
 
-      await act(async () => {
-        await result.current.removeTag("1", "foo");
+      act(() => {
+        result.current.removeTag("1", "foo");
       });
 
       expect(result.current.notes[0].tags).toEqual(["bar"]);
     });
 
     it("removeTag normalizes to lowercase", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "alpha", createdAt: 1000, pinned: false, tags: ["work"] },
       ]);
 
@@ -735,15 +684,15 @@ describe("useNotes", () => {
         expect(result.current.notes).toHaveLength(1);
       });
 
-      await act(async () => {
-        await result.current.removeTag("1", "WORK");
+      act(() => {
+        result.current.removeTag("1", "WORK");
       });
 
       expect(result.current.notes[0].tags).toBeUndefined();
     });
 
     it("removeTag clears tags array when last tag is removed", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "alpha", createdAt: 1000, pinned: false, tags: ["foo"] },
       ]);
 
@@ -754,8 +703,8 @@ describe("useNotes", () => {
         expect(result.current.notes).toHaveLength(1);
       });
 
-      await act(async () => {
-        await result.current.removeTag("1", "foo");
+      act(() => {
+        result.current.removeTag("1", "foo");
       });
 
       expect(result.current.notes[0].tags).toBeUndefined();
@@ -767,15 +716,16 @@ describe("useNotes", () => {
       const { useNotes } = await import("@/lib/store/use-notes");
       const { result } = renderHook(() => useNotes());
 
-      await act(async () => {
+      act(() => {
         result.current.setText("quick thought");
       });
 
-      await act(async () => {
-        await result.current.handleInputKeyDown({
-          key: "Enter",
-          preventDefault: vi.fn(),
-        } as unknown as React.KeyboardEvent);
+      act(() => {
+        result.current.submit();
+      });
+
+      await vi.waitFor(() => {
+        expect(result.current.notes).toHaveLength(1);
       });
 
       expect(result.current.notes[0].buffer).toBe(true);
@@ -786,15 +736,16 @@ describe("useNotes", () => {
       const { useNotes } = await import("@/lib/store/use-notes");
       const { result } = renderHook(() => useNotes());
 
-      await act(async () => {
+      act(() => {
         result.current.setText("idea #project");
       });
 
-      await act(async () => {
-        await result.current.handleInputKeyDown({
-          key: "Enter",
-          preventDefault: vi.fn(),
-        } as unknown as React.KeyboardEvent);
+      act(() => {
+        result.current.submit();
+      });
+
+      await vi.waitFor(() => {
+        expect(result.current.notes).toHaveLength(1);
       });
 
       expect(result.current.notes[0].buffer).toBeUndefined();
@@ -805,15 +756,16 @@ describe("useNotes", () => {
       const { useNotes } = await import("@/lib/store/use-notes");
       const { result } = renderHook(() => useNotes());
 
-      await act(async () => {
+      act(() => {
         result.current.setText("remind me @10m");
       });
 
-      await act(async () => {
-        await result.current.handleInputKeyDown({
-          key: "Enter",
-          preventDefault: vi.fn(),
-        } as unknown as React.KeyboardEvent);
+      act(() => {
+        result.current.submit();
+      });
+
+      await vi.waitFor(() => {
+        expect(result.current.notes).toHaveLength(1);
       });
 
       expect(result.current.notes[0].buffer).toBeUndefined();
@@ -821,7 +773,7 @@ describe("useNotes", () => {
 
     it("classifyBuffer with tag removes buffer flag", async () => {
       const now = Date.now();
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "buffer", createdAt: now, pinned: false, buffer: true },
       ]);
 
@@ -832,8 +784,8 @@ describe("useNotes", () => {
         expect(result.current.notes).toHaveLength(1);
       });
 
-      await act(async () => {
-        await result.current.classifyBuffer("1", "tag");
+      act(() => {
+        result.current.classifyBuffer("1", "tag");
       });
 
       expect(result.current.notes[0].buffer).toBe(false);
@@ -841,7 +793,7 @@ describe("useNotes", () => {
 
     it("classifyBuffer with remind adds @15m and removes buffer", async () => {
       const now = Date.now();
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "buffer", createdAt: now, pinned: false, buffer: true },
       ]);
 
@@ -852,8 +804,8 @@ describe("useNotes", () => {
         expect(result.current.notes).toHaveLength(1);
       });
 
-      await act(async () => {
-        await result.current.classifyBuffer("1", "remind");
+      act(() => {
+        result.current.classifyBuffer("1", "remind");
       });
 
       expect(result.current.notes[0].buffer).toBe(false);
@@ -862,7 +814,7 @@ describe("useNotes", () => {
 
     it("classifyBuffer with discard deletes the note", async () => {
       const now = Date.now();
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "buffer", createdAt: now, pinned: false, buffer: true },
       ]);
 
@@ -873,8 +825,8 @@ describe("useNotes", () => {
         expect(result.current.notes).toHaveLength(1);
       });
 
-      await act(async () => {
-        await result.current.classifyBuffer("1", "discard");
+      act(() => {
+        result.current.classifyBuffer("1", "discard");
       });
 
       expect(result.current.notes).toHaveLength(0);
@@ -889,7 +841,7 @@ describe("useNotes", () => {
 
     it("auto-expires old buffer notes on mount", async () => {
       const old = Date.now() - 3 * 60 * 60 * 1000; // 3 hours ago
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "old buffer", createdAt: old, pinned: false, buffer: true },
         { id: "2", text: "regular", createdAt: old, pinned: false },
       ]);
@@ -906,68 +858,8 @@ describe("useNotes", () => {
   });
 
   describe("keyboard shortcuts", () => {
-    it("Ctrl+Shift+T inserts # in input text", async () => {
-      const { useNotes } = await import("@/lib/store/use-notes");
-      const { result } = renderHook(() => useNotes());
-
-      await act(async () => {
-        result.current.setText("hello");
-      });
-
-      await act(async () => {
-        result.current.handleInputKeyDown({
-          key: "t",
-          shiftKey: true,
-          ctrlKey: true,
-          preventDefault: vi.fn(),
-        } as unknown as React.KeyboardEvent);
-      });
-
-      expect(result.current.text).toBe("hello #");
-    });
-
-    it("Ctrl+Shift+T appends # after trailing space", async () => {
-      const { useNotes } = await import("@/lib/store/use-notes");
-      const { result } = renderHook(() => useNotes());
-
-      await act(async () => {
-        result.current.setText("hello ");
-      });
-
-      await act(async () => {
-        result.current.handleInputKeyDown({
-          key: "t",
-          shiftKey: true,
-          ctrlKey: true,
-          preventDefault: vi.fn(),
-        } as unknown as React.KeyboardEvent);
-      });
-
-      expect(result.current.text).toBe("hello #");
-    });
-
-    it("Ctrl+Shift+T does nothing when text already ends with #", async () => {
-      const { useNotes } = await import("@/lib/store/use-notes");
-      const { result } = renderHook(() => useNotes());
-
-      await act(async () => {
-        result.current.setText("hello #");
-      });
-
-      await act(async () => {
-        result.current.handleInputKeyDown({
-          key: "t",
-          shiftKey: true,
-          ctrlKey: true,
-          preventDefault: vi.fn(),
-        } as unknown as React.KeyboardEvent);
-      });
-
-      expect(result.current.text).toBe("hello #");
-    });
-
     it("tagGroupBoundaries is empty when filtering", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "alpha", createdAt: 1000, pinned: false, tags: ["foo"] },
         { id: "2", text: "beta", createdAt: 1000, pinned: false, tags: ["bar"] },
       ]);
@@ -979,7 +871,7 @@ describe("useNotes", () => {
         expect(result.current.notes).toHaveLength(2);
       });
 
-      await act(async () => {
+      act(() => {
         result.current.setText("alpha");
       });
 
@@ -987,7 +879,7 @@ describe("useNotes", () => {
     });
 
     it("tagGroupBoundaries marks each tag group start index", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "a", createdAt: 1000, pinned: false, tags: ["foo"] },
         { id: "2", text: "b", createdAt: 1000, pinned: false, tags: ["bar"] },
         { id: "3", text: "c", createdAt: 1000, pinned: false, tags: ["foo"] },
@@ -1005,7 +897,7 @@ describe("useNotes", () => {
     });
 
     it("tagGroupBoundaries includes untagged section", async () => {
-      mockStore.get.mockResolvedValue([
+      mockStore._setData("notes",[
         { id: "1", text: "a", createdAt: 1000, pinned: false, tags: ["foo"] },
         { id: "2", text: "b", createdAt: 1000, pinned: false },
       ]);
@@ -1018,58 +910,6 @@ describe("useNotes", () => {
       });
 
       expect(result.current.tagGroupBoundaries).toEqual([0, 1]);
-    });
-
-    it("Ctrl+Shift+G jumps to next tag group boundary", async () => {
-      mockStore.get.mockResolvedValue([
-        { id: "1", text: "a", createdAt: 1000, pinned: false, tags: ["foo"] },
-        { id: "2", text: "b", createdAt: 1000, pinned: false, tags: ["bar"] },
-      ]);
-
-      const { useNotes } = await import("@/lib/store/use-notes");
-      const { result } = renderHook(() => useNotes());
-
-      await vi.waitFor(() => {
-        expect(result.current.notes).toHaveLength(2);
-      });
-
-      // Start at index 0 (foo group)
-      await act(async () => {
-        result.current.handleNoteKeyDown(
-          { key: "g", shiftKey: true, ctrlKey: true, preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
-          "1",
-          0,
-          2,
-        );
-      });
-
-      expect(result.current.focusedIndex).toBe(1);
-    });
-
-    it("Ctrl+Shift+H jumps to previous tag group boundary", async () => {
-      mockStore.get.mockResolvedValue([
-        { id: "1", text: "a", createdAt: 1000, pinned: false, tags: ["foo"] },
-        { id: "2", text: "b", createdAt: 1000, pinned: false, tags: ["bar"] },
-      ]);
-
-      const { useNotes } = await import("@/lib/store/use-notes");
-      const { result } = renderHook(() => useNotes());
-
-      await vi.waitFor(() => {
-        expect(result.current.notes).toHaveLength(2);
-      });
-
-      // Start at index 1 (bar group)
-      await act(async () => {
-        result.current.handleNoteKeyDown(
-          { key: "h", shiftKey: true, ctrlKey: true, preventDefault: vi.fn() } as unknown as React.KeyboardEvent,
-          "2",
-          1,
-          2,
-        );
-      });
-
-      expect(result.current.focusedIndex).toBe(0);
     });
   });
 });

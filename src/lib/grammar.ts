@@ -1,7 +1,9 @@
-/** Token types recognized by the inline capture grammar. */
+import { invoke } from "@tauri-apps/api/core";
+
+/** Token types recognised by the inline capture grammar. */
 export type TokenType = "tag" | "time" | "issue" | "channel" | "text";
 
-/** A single parsed segment of a note string. */
+/** A single parsed segment of a note string (frontend lightweight parser). */
 export interface Token {
   type: TokenType;
   text: string;
@@ -15,6 +17,36 @@ export const TOKEN_COLORS: Record<TokenType, string> = {
   channel: "#d2a8ff",
   text: "rgba(255,255,255,0.8)",
 };
+
+// ---------------------------------------------------------------------------
+// Rust-shared protocol types
+// ---------------------------------------------------------------------------
+
+export type GrammarToken =
+  | { type: "text"; content: string }
+  | { type: "tag"; content: string }
+  | { type: "time"; content: { raw: string; amount: number; unit: string } }
+  | { type: "issue"; content: string }
+  | { type: "channel"; content: string };
+
+export interface ParsedNote {
+  raw: string;
+  tokens: GrammarToken[];
+  tags: string[];
+  delays_ms: number[];
+  issues: string[];
+  channels: string[];
+  clean_body: string;
+}
+
+/** Parse a note string via the canonical Rust grammar parser. */
+export async function parseNoteWithRust(text: string): Promise<ParsedNote> {
+  return await invoke<ParsedNote>("parse_note_command", { text });
+}
+
+// ---------------------------------------------------------------------------
+// Frontend lightweight parser (live highlighting only)
+// ---------------------------------------------------------------------------
 
 function classifyToken(text: string): TokenType {
   if (text.startsWith("#")) return "tag";
@@ -58,13 +90,9 @@ function mergeConsecutiveText(tokens: Token[]): Token[] {
 }
 
 /**
- * Parse a note string into typed tokens.
- * Recognizes:
- *   #tag        → "tag"
- *   @10s        → "time"
- *   @issue-123  → "issue"
- *   @channel/dev → "channel"
- *   @username   → "channel"
+ * Parse a note string into typed tokens for live UI highlighting.
+ * This is a lightweight frontend mirror of the canonical Rust parser.
+ * For save-time canonical parsing, use {@link parseNoteWithRust}.
  */
 export function parseTokens(text: string): Token[] {
   if (!text) return [];

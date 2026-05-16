@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
+import { emitTestEvent, clearTestEventListeners } from "./setup";
 
 const mockInvoke = vi.fn();
 
@@ -10,6 +11,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 describe("useNotifications", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearTestEventListeners();
   });
 
   it("loads pending notifications on mount", async () => {
@@ -85,4 +87,46 @@ describe("useNotifications", () => {
 
     vi.useRealTimers();
   }, 10000);
+
+  it("adds a pending notification when reminder_scheduled event fires", async () => {
+    mockInvoke.mockResolvedValue([]);
+
+    const { useNotifications } = await import(
+      "@/lib/store/use-notifications"
+    );
+    const { result } = renderHook(() => useNotifications());
+
+    await waitFor(() => {
+      expect(result.current.pending).toEqual([]);
+    });
+
+    const scheduled = { id: "2", body: "new reminder", trigger_at: 5000, created_at: 0 };
+    act(() => {
+      emitTestEvent("reminder_scheduled", scheduled);
+    });
+
+    expect(result.current.pending).toHaveLength(1);
+    expect(result.current.pending[0]).toEqual(scheduled);
+  });
+
+  it("refreshes pending list when reminder_fired event fires", async () => {
+    mockInvoke.mockResolvedValue([]);
+
+    const { useNotifications } = await import(
+      "@/lib/store/use-notifications"
+    );
+    const { result } = renderHook(() => useNotifications());
+
+    await waitFor(() => {
+      expect(result.current.pending).toEqual([]);
+    });
+
+    act(() => {
+      emitTestEvent("reminder_fired", "some-id");
+    });
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("list_pending_notifications");
+    });
+  });
 });

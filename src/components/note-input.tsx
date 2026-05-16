@@ -2,16 +2,18 @@ import SearchIcon from "@/components/icons/SearchIcon";
 import CloseIcon from "@/components/icons/CloseIcon";
 import NoteText from "@/components/note-text";
 import { useTheme } from "@/lib/theme/context";
+import type { IntentSuggestion } from "@/lib/intent";
 
 interface Props {
   text: string;
   inputRef: React.RefObject<HTMLInputElement | null>;
   onChange: (value: string) => void;
-  onKeyDown: (e: React.KeyboardEvent) => void;
+  
   onClear: () => void;
+  suggestion?: IntentSuggestion | null;
 }
 
-export default function NoteInput({ text, inputRef, onChange, onKeyDown, onClear }: Props) {
+export default function NoteInput({ text, inputRef, onChange, onClear, suggestion }: Props) {
   const { isDark } = useTheme();
 
   return (
@@ -25,6 +27,11 @@ export default function NoteInput({ text, inputRef, onChange, onKeyDown, onClear
           className="absolute inset-0 text-[20px] leading-none pointer-events-none whitespace-pre overflow-hidden flex items-center"
         >
           {text ? <NoteText text={text} /> : null}
+          {!text && suggestion && (
+            <span className={`opacity-50 ${isDark ? "text-white" : "text-black"}`}>
+              {suggestion.text.trimStart()}
+            </span>
+          )}
         </div>
 
         <input
@@ -32,8 +39,7 @@ export default function NoteInput({ text, inputRef, onChange, onKeyDown, onClear
           type="text"
           value={text}
           onChange={(e) => onChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Type a quick note..."
+          placeholder={suggestion ? `Tab for ${suggestion.label ?? "suggestion"}` : "Type a quick note..."}
           className={`relative w-full bg-transparent text-[20px] outline-none ${
             isDark
               ? "placeholder-white/40 caret-white"

@@ -4,6 +4,7 @@ import {
   extractTags,
   extractTimeTokens,
   TOKEN_COLORS,
+  parseNoteWithRust,
 } from "@/lib/grammar";
 
 describe("parseTokens", () => {
@@ -340,5 +341,38 @@ describe("TOKEN_COLORS", () => {
     expect(TOKEN_COLORS.issue).toBeTruthy();
     expect(TOKEN_COLORS.channel).toBeTruthy();
     expect(TOKEN_COLORS.text).toBeTruthy();
+  });
+});
+
+describe("parseNoteWithRust", () => {
+  it("returns parsed note from Rust command", async () => {
+    const parsed = await parseNoteWithRust("meeting notes #work @10s");
+    expect(parsed.raw).toBe("meeting notes #work @10s");
+    expect(parsed.tags).toContain("work");
+    expect(parsed.delays_ms).toContain(10_000);
+    expect(parsed.clean_body).toBe("meeting notes");
+  });
+
+  it("returns empty delays for plain text", async () => {
+    const parsed = await parseNoteWithRust("plain text");
+    expect(parsed.delays_ms).toEqual([]);
+    expect(parsed.tags).toEqual([]);
+    expect(parsed.clean_body).toBe("plain text");
+  });
+
+  it("extracts issues and channels", async () => {
+    const parsed = await parseNoteWithRust("fix @issue-123 ask @channel/dev");
+    expect(parsed.issues).toContain("-123");
+    expect(parsed.channels).toContain("dev");
+  });
+
+  it("deduplicates tags", async () => {
+    const parsed = await parseNoteWithRust("#foo #bar #foo");
+    expect(parsed.tags).toEqual(["foo", "bar"]);
+  });
+
+  it("normalises tags to lowercase", async () => {
+    const parsed = await parseNoteWithRust("#WORK #Urgent");
+    expect(parsed.tags).toEqual(["work", "urgent"]);
   });
 });

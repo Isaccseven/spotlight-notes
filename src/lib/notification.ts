@@ -7,15 +7,15 @@ import { ScheduledNotification } from "@/types/notification";
 
 export async function registerNotification(
   message: string,
-): Promise<ScheduledNotification | null> {
+): Promise<ScheduledNotification[]> {
   let granted = await isPermissionGranted();
   if (!granted) {
     const permission = await requestPermission();
     granted = permission === "granted";
   }
-  if (!granted) return null;
+  if (!granted) return [];
 
-  return await invoke<ScheduledNotification>("register_notification", {
+  return await invoke<ScheduledNotification[]>("register_notification", {
     message,
   });
 }

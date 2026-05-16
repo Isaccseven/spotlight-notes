@@ -33,18 +33,26 @@ export function useNotifications() {
     refresh();
     const interval = setInterval(refresh, 5000);
 
-    let unlistenFn: (() => void) | undefined;
-    const setupListener = async () => {
-      const unlisten = await listen("reminder_fired", () => {
+    let unlistenFired: (() => void) | undefined;
+    let unlistenScheduled: (() => void) | undefined;
+
+    const setupListeners = async () => {
+      const unlisten1 = await listen<ScheduledNotification>("reminder_fired", () => {
         refresh();
       });
-      unlistenFn = unlisten;
+      unlistenFired = unlisten1;
+
+      const unlisten2 = await listen<ScheduledNotification>("reminder_scheduled", (event) => {
+        setPending((prev) => [...prev, event.payload]);
+      });
+      unlistenScheduled = unlisten2;
     };
-    setupListener();
+    setupListeners();
 
     return () => {
       clearInterval(interval);
-      if (unlistenFn) unlistenFn();
+      if (unlistenFired) unlistenFired();
+      if (unlistenScheduled) unlistenScheduled();
     };
   }, [refresh]);
 

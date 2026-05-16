@@ -1,11 +1,13 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_store::StoreExt;
+
+use crate::grammar;
 
 const STORE_PATH: &str = "notes.json";
 const NOTIFICATIONS_KEY: &str = "pending_notifications";
@@ -69,45 +71,67 @@ impl NotificationQueue {
         Ok(())
     }
 
+    /// Register one or more notifications from a pre-parsed note.
+    pub fn register_from_parsed(
+        &self,
+        app: AppHandle,
+        parsed: &grammar::ParsedNote,
+    ) -> Result<Vec<ScheduledNotification>, String> {
+        if parsed.delays_ms.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let now = current_time_ms();
+        let clean_body = parsed.clean_body.clone();
+        let mut scheduled = Vec::with_capacity(parsed.delays_ms.len());
+
+        for (idx, delay_ms) in parsed.delays_ms.iter().enumerate() {
+            let body = if idx == 0 {
+                clean_body.clone()
+            } else {
+                format!("{} (reminder {})", clean_body, idx + 1)
+            };
+
+            let notification = ScheduledNotification {
+                id: uuid::Uuid::new_v4().to_string(),
+                body,
+                trigger_at: now + delay_ms,
+                created_at: now,
+            };
+
+            {
+                let _guard = self.store_lock.lock().map_err(|e| e.to_string())?;
+                let store = app.store(STORE_PATH).map_err(|e| e.to_string())?;
+                let mut existing: Vec<ScheduledNotification> = store
+                    .get(NOTIFICATIONS_KEY)
+                    .and_then(|v| serde_json::from_value(v).ok())
+                    .unwrap_or_default();
+
+                existing.push(notification.clone());
+                store.set(
+                    NOTIFICATIONS_KEY,
+                    serde_json::to_value(&existing).map_err(|e| e.to_string())?,
+                );
+            }
+
+            self.schedule(app.clone(), notification.clone())?;
+
+            let _ = app.emit("reminder_scheduled", &notification);
+            scheduled.push(notification);
+        }
+
+        Ok(scheduled)
+    }
+
+    /// Legacy entry-point: parse the raw message with the grammar module,
+    /// then delegate to `register_from_parsed`.
     pub fn register(
         &self,
         app: AppHandle,
         message: String,
-    ) -> Result<ScheduledNotification, String> {
-        let delay_ms = parse_delay_ms(&message).ok_or("Invalid delay format")?;
-        let now = current_time_ms();
-
-        let body = message
-            .split('@')
-            .next()
-            .unwrap_or(&message)
-            .trim()
-            .to_string();
-
-        let notification = ScheduledNotification {
-            id: uuid::Uuid::new_v4().to_string(),
-            body,
-            trigger_at: now + delay_ms,
-            created_at: now,
-        };
-
-        {
-            let _guard = self.store_lock.lock().map_err(|e| e.to_string())?;
-            let store = app.store(STORE_PATH).map_err(|e| e.to_string())?;
-            let mut existing: Vec<ScheduledNotification> = store
-                .get(NOTIFICATIONS_KEY)
-                .and_then(|v| serde_json::from_value(v).ok())
-                .unwrap_or_default();
-
-            existing.push(notification.clone());
-            store.set(
-                NOTIFICATIONS_KEY,
-                serde_json::to_value(&existing).map_err(|e| e.to_string())?,
-            );
-        }
-
-        self.schedule(app, notification.clone())?;
-        Ok(notification)
+    ) -> Result<Vec<ScheduledNotification>, String> {
+        let parsed = grammar::parse_note(&message);
+        self.register_from_parsed(app, &parsed)
     }
 
     pub fn cancel(&self, app: AppHandle, id: String) -> Result<(), String> {
@@ -173,36 +197,11 @@ impl NotificationQueue {
     }
 }
 
-static DELAY_REGEX: OnceLock<regex::Regex> = OnceLock::new();
-
-pub(crate) fn parse_delay_ms(message: &str) -> Option<u64> {
-    let part_after_at = message.split('@').nth(1)?;
-    let trimmed = part_after_at.trim();
-
-    let re = DELAY_REGEX.get_or_init(|| {
-        regex::Regex::new(r"^(?i)(\d+)([smhd])").expect("valid regex")
-    });
-    let caps = re.captures(trimmed)?;
-
-    let amount: u64 = caps[1].parse().ok()?;
-    let unit = caps[2].to_lowercase().chars().next()?;
-
-    let multiplier = match unit {
-        's' => 1,
-        'm' => 60,
-        'h' => 60 * 60,
-        'd' => 24 * 60 * 60,
-        _ => return None,
-    };
-
-    Some(amount * multiplier * 1000)
-}
-
 #[tauri::command]
 pub async fn register_notification(
     app: AppHandle,
     message: String,
-) -> Result<ScheduledNotification, String> {
+) -> Result<Vec<ScheduledNotification>, String> {
     let state = app
         .notification()
         .permission_state()
@@ -235,52 +234,6 @@ pub fn list_pending_notifications(app: AppHandle) -> Result<Vec<ScheduledNotific
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_parse_delay_seconds() {
-        assert_eq!(parse_delay_ms("reminder @ 10s"), Some(10_000));
-        assert_eq!(parse_delay_ms("reminder @10S"), Some(10_000));
-    }
-
-    #[test]
-    fn test_parse_delay_minutes() {
-        assert_eq!(parse_delay_ms("reminder @ 5m"), Some(300_000));
-        assert_eq!(parse_delay_ms("reminder @2M"), Some(120_000));
-    }
-
-    #[test]
-    fn test_parse_delay_hours() {
-        assert_eq!(parse_delay_ms("reminder @ 1h"), Some(3_600_000));
-        assert_eq!(parse_delay_ms("reminder @3H"), Some(10_800_000));
-    }
-
-    #[test]
-    fn test_parse_delay_days() {
-        assert_eq!(parse_delay_ms("reminder @ 1d"), Some(86_400_000));
-        assert_eq!(parse_delay_ms("reminder @2D"), Some(172_800_000));
-    }
-
-    #[test]
-    fn test_parse_delay_no_at_sign() {
-        assert_eq!(parse_delay_ms("no delay here"), None);
-    }
-
-    #[test]
-    fn test_parse_delay_invalid_unit() {
-        assert_eq!(parse_delay_ms("reminder @ 5x"), None);
-    }
-
-    #[test]
-    fn test_parse_delay_with_extra_text() {
-        assert_eq!(parse_delay_ms("reminder @ 5m extra"), Some(300_000));
-    }
-
-    #[test]
-    fn test_parse_delay_whitespace_variations() {
-        assert_eq!(parse_delay_ms("reminder @5s"), Some(5_000));
-        assert_eq!(parse_delay_ms("reminder @ 5s"), Some(5_000));
-        assert_eq!(parse_delay_ms("reminder @  5s"), Some(5_000));
-    }
 
     #[test]
     fn test_scheduled_notification_serde() {
